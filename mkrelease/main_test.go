@@ -91,6 +91,49 @@ func TestReleaseImpl_GetNotesContent(t *testing.T) {
 	}
 }
 
+func TestReleaseImpl_GetRepoPath(t *testing.T) {
+	path := "/test/repo/path"
+	r := &ReleaseImpl{
+		repoPath: path,
+	}
+
+	if got := r.GetRepoPath(); got != path {
+		t.Errorf("ReleaseImpl.GetRepoPath() = %v, want %v", got, path)
+	}
+}
+
+func TestTagName(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		want    string
+	}{
+		{
+			name:    "normal version",
+			version: "1.2.3",
+			want:    "v1.2.3",
+		},
+		{
+			name:    "already has v prefix",
+			version: "v1.2.3", // Should still work even though the 'v' will be stripped elsewhere
+			want:    "vv1.2.3",
+		},
+		{
+			name:    "empty version",
+			version: "",
+			want:    "v",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tagName(tt.version); got != tt.want {
+				t.Errorf("tagName() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestReleaseImpl_CreateAssets(t *testing.T) {
 	r := &ReleaseImpl{}
 	err := r.CreateAssets("/test/path")
