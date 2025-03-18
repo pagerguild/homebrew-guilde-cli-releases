@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/google/go-github/v69/github"
 )
 
 //go:generate mockgen -source=main.go -destination=./mock_test.go -package=main
@@ -31,7 +33,9 @@ const (
 const (
 	// We use zip files, since these are supported by Apple Developer's
 	// code signing tools.
-	fileType = "zip"
+	fileType              = "zip"
+	mediaType             = "application/zip"
+	releaseNotesMediaType = "text/markdown"
 )
 
 // ReleaseAsset represents a binary release asset for a specific platform/arch
@@ -50,6 +54,11 @@ type Release interface {
 	GetVersion() string
 	GetAssets() []ReleaseAsset
 	GetNotesContent() string
+	CreateGitHubRelease(client *github.Client, version, notesContent string) (int64, error)
+	UploadReleaseAsset(client *github.Client, releaseID int64, name, mediaType string, file *os.File) error
+	// CreateGitHubClient creates a new GitHub client that includes the
+	// authentication token in each request.
+	CreateGitHubClient(pat string) *github.Client
 }
 
 // ReleaseImpl implements the Release interface
@@ -58,6 +67,22 @@ type ReleaseImpl struct {
 	assets       []ReleaseAsset
 	notesPath    string
 	notesContent string
+	githubPAT    string
+}
+
+// CreateGitHubClient implements Release.
+func (r *ReleaseImpl) CreateGitHubClient(pat string) *github.Client {
+	panic("unimplemented")
+}
+
+// CreateGitHubRelease implements Release.
+func (r *ReleaseImpl) CreateGitHubRelease(client *github.Client, version string, notesContent string) (int64, error) {
+	panic("unimplemented")
+}
+
+// UploadReleaseAsset implements Release.
+func (r *ReleaseImpl) UploadReleaseAsset(client *github.Client, releaseID int64, name string, mediaType string, file *os.File) error {
+	panic("unimplemented")
 }
 
 // GetVersion returns the release version

@@ -10,8 +10,10 @@
 package main
 
 import (
+	os "os"
 	reflect "reflect"
 
+	github "github.com/google/go-github/v69/github"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -65,6 +67,35 @@ func (m *MockRelease) CreateAssets(dirPath string) error {
 func (mr *MockReleaseMockRecorder) CreateAssets(dirPath any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAssets", reflect.TypeOf((*MockRelease)(nil).CreateAssets), dirPath)
+}
+
+// CreateGitHubClient mocks base method.
+func (m *MockRelease) CreateGitHubClient(pat string) *github.Client {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateGitHubClient", pat)
+	ret0, _ := ret[0].(*github.Client)
+	return ret0
+}
+
+// CreateGitHubClient indicates an expected call of CreateGitHubClient.
+func (mr *MockReleaseMockRecorder) CreateGitHubClient(pat any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateGitHubClient", reflect.TypeOf((*MockRelease)(nil).CreateGitHubClient), pat)
+}
+
+// CreateGitHubRelease mocks base method.
+func (m *MockRelease) CreateGitHubRelease(client *github.Client, version, notesContent string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateGitHubRelease", client, version, notesContent)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateGitHubRelease indicates an expected call of CreateGitHubRelease.
+func (mr *MockReleaseMockRecorder) CreateGitHubRelease(client, version, notesContent any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateGitHubRelease", reflect.TypeOf((*MockRelease)(nil).CreateGitHubRelease), client, version, notesContent)
 }
 
 // GetAssets mocks base method.
@@ -121,6 +152,20 @@ func (m *MockRelease) LoadReleaseNotes() error {
 func (mr *MockReleaseMockRecorder) LoadReleaseNotes() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadReleaseNotes", reflect.TypeOf((*MockRelease)(nil).LoadReleaseNotes))
+}
+
+// UploadReleaseAsset mocks base method.
+func (m *MockRelease) UploadReleaseAsset(client *github.Client, releaseID int64, name, mediaType string, file *os.File) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UploadReleaseAsset", client, releaseID, name, mediaType, file)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UploadReleaseAsset indicates an expected call of UploadReleaseAsset.
+func (mr *MockReleaseMockRecorder) UploadReleaseAsset(client, releaseID, name, mediaType, file any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UploadReleaseAsset", reflect.TypeOf((*MockRelease)(nil).UploadReleaseAsset), client, releaseID, name, mediaType, file)
 }
 
 // Validate mocks base method.

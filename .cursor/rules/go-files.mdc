@@ -17,3 +17,4 @@ Maintain a "Happy Path" test that uses a mock object to validate the sequence.
 
 Whenever a new strategy step is added, make sure it's reflected in the "Happy Path" test.
 
+Run `just lint_and_test` after changes, and fix whatever error messages you get back.
