@@ -7,7 +7,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
+
+//go:generate mockgen -source=main.go -destination=./mock_test.go -package=main
 
 const (
 	repoOwner = "pagerguild"
@@ -38,16 +41,42 @@ type ReleaseAsset struct {
 	Checksum string // SHA256 checksum (computed)
 }
 
-// Release represents all the information needed for a release
-type Release struct {
-	Version      string
-	Assets       []ReleaseAsset
-	NotesPath    string
-	NotesContent string
+// Release defines the interface for release operations
+type Release interface {
+	Validate() error
+	ComputeChecksums() error
+	LoadReleaseNotes() error
+	CreateAssets(dirPath string) error
+	GetVersion() string
+	GetAssets() []ReleaseAsset
+	GetNotesContent() string
 }
 
-// NewRelease creates and validates a new Release from a directory
-func NewRelease(version string, dirPath string) (*Release, error) {
+// ReleaseImpl implements the Release interface
+type ReleaseImpl struct {
+	version      string
+	assets       []ReleaseAsset
+	notesPath    string
+	notesContent string
+}
+
+// GetVersion returns the release version
+func (r *ReleaseImpl) GetVersion() string {
+	return r.version
+}
+
+// GetAssets returns the release assets
+func (r *ReleaseImpl) GetAssets() []ReleaseAsset {
+	return r.assets
+}
+
+// GetNotesContent returns the release notes content
+func (r *ReleaseImpl) GetNotesContent() string {
+	return r.notesContent
+}
+
+// CreateAssets populates the release assets from the given directory
+func (r *ReleaseImpl) CreateAssets(dirPath string) error {
 	assetNames := []string{
 		assetNameMacosArm64,
 		assetNameMacosIntel,
@@ -64,37 +93,19 @@ func NewRelease(version string, dirPath string) (*Release, error) {
 		assets = append(assets, asset)
 	}
 
-	notesPath := filepath.Join(dirPath, releaseNotesFileName)
-
-	r := &Release{
-		Version:   version,
-		Assets:    assets,
-		NotesPath: notesPath,
-	}
-
-	if err := r.Validate(); err != nil {
-		return nil, fmt.Errorf("release validation failed: %w", err)
-	}
-
-	if err := r.ComputeChecksums(); err != nil {
-		return nil, fmt.Errorf("checksum computation failed: %w", err)
-	}
-
-	if err := r.LoadReleaseNotes(); err != nil {
-		return nil, fmt.Errorf("failed to load release notes: %w", err)
-	}
-
-	return r, nil
+	r.assets = assets
+	r.notesPath = filepath.Join(dirPath, releaseNotesFileName)
+	return nil
 }
 
-func (r *Release) Validate() error {
+func (r *ReleaseImpl) Validate() error {
 	// Check release notes exist
-	if _, err := os.Stat(r.NotesPath); os.IsNotExist(err) {
-		return fmt.Errorf("release notes not found at %s", r.NotesPath)
+	if _, err := os.Stat(r.notesPath); os.IsNotExist(err) {
+		return fmt.Errorf("release notes not found at %s", r.notesPath)
 	}
 
 	// Check all assets exist
-	for _, asset := range r.Assets {
+	for _, asset := range r.assets {
 		if _, err := os.Stat(asset.Path); os.IsNotExist(err) {
 			return fmt.Errorf("asset not found at %s", asset.Path)
 		}
@@ -103,23 +114,44 @@ func (r *Release) Validate() error {
 	return nil
 }
 
-func (r *Release) ComputeChecksums() error {
-	for i := range r.Assets {
-		checksum, err := calculateSHA256(r.Assets[i].Path)
+func (r *ReleaseImpl) ComputeChecksums() error {
+	for i := range r.assets {
+		checksum, err := calculateSHA256(r.assets[i].Path)
 		if err != nil {
-			return fmt.Errorf("failed to calculate checksum for %s: %w", r.Assets[i].Name, err)
+			return fmt.Errorf("failed to calculate checksum for %s: %w", r.assets[i].Name, err)
 		}
-		r.Assets[i].Checksum = checksum
+		r.assets[i].Checksum = checksum
 	}
 	return nil
 }
 
-func (r *Release) LoadReleaseNotes() error {
-	content, err := os.ReadFile(r.NotesPath)
+func (r *ReleaseImpl) LoadReleaseNotes() error {
+	content, err := os.ReadFile(r.notesPath)
 	if err != nil {
 		return fmt.Errorf("failed to read release notes: %w", err)
 	}
-	r.NotesContent = string(content)
+	r.notesContent = string(content)
+	return nil
+}
+
+// ReleaseStrategy defines the steps to create a release
+func ReleaseStrategy(r Release, dirPath string) error {
+	if err := r.CreateAssets(dirPath); err != nil {
+		return fmt.Errorf("failed to create assets: %w", err)
+	}
+
+	if err := r.Validate(); err != nil {
+		return fmt.Errorf("release validation failed: %w", err)
+	}
+
+	if err := r.ComputeChecksums(); err != nil {
+		return fmt.Errorf("checksum computation failed: %w", err)
+	}
+
+	if err := r.LoadReleaseNotes(); err != nil {
+		return fmt.Errorf("failed to load release notes: %w", err)
+	}
+
 	return nil
 }
 
@@ -147,9 +179,12 @@ func main() {
 	version := os.Args[1]
 	dirPath := os.Args[2]
 
-	// Validate version format (basic check)
-	if len(version) == 0 || version[0] == 'v' {
-		fmt.Fprintf(os.Stderr, "Version should be in format X.Y.Z (without 'v' prefix)\n")
+	// Strip 'v' prefix if present
+	version = strings.TrimPrefix(version, "v")
+
+	// Validate version is not empty
+	if len(version) == 0 {
+		fmt.Fprintf(os.Stderr, "Version cannot be empty\n")
 		os.Exit(1)
 	}
 
@@ -159,14 +194,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	release, err := NewRelease(version, dirPath)
-	if err != nil {
+	release := &ReleaseImpl{version: version}
+	if err := ReleaseStrategy(release, dirPath); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create release: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Print checksums (for now)
-	for _, asset := range release.Assets {
+	for _, asset := range release.GetAssets() {
 		fmt.Printf("SHA256 (%s.%s) = %s\n", asset.Name, fileType, asset.Checksum)
 	}
 

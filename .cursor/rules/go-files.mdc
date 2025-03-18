@@ -1,0 +1,19 @@
+---
+description: 
+globs: **/*.go
+alwaysApply: false
+---
+
+Make unit tests where it's simple to do so.
+
+Each call out to the github client should be done in a separate strategy method, so that we can "test by visual inspection"
+and then mock that method in tests.
+
+Similar with stuff like checksums that require filesystem setup, let's just mock those.
+
+use [mock_test.go](mdc:mkrelease/mock_test.go) for the mock.
+
+Maintain a "Happy Path" test that uses a mock object to validate the sequence.
+
+Whenever a new strategy step is added, make sure it's reflected in the "Happy Path" test.
+
