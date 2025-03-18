@@ -42,6 +42,21 @@ func (m *MockRelease) EXPECT() *MockReleaseMockRecorder {
 	return m.recorder
 }
 
+// CommitFormulaChange mocks base method.
+func (m *MockRelease) CommitFormulaChange(ctx context.Context, pat, message string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CommitFormulaChange", ctx, pat, message)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CommitFormulaChange indicates an expected call of CommitFormulaChange.
+func (mr *MockReleaseMockRecorder) CommitFormulaChange(ctx, pat, message any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommitFormulaChange", reflect.TypeOf((*MockRelease)(nil).CommitFormulaChange), ctx, pat, message)
+}
+
 // ComputeChecksums mocks base method.
 func (m *MockRelease) ComputeChecksums() error {
 	m.ctrl.T.Helper()
@@ -57,17 +72,17 @@ func (mr *MockReleaseMockRecorder) ComputeChecksums() *gomock.Call {
 }
 
 // CreateAndPushTagToGitHub mocks base method.
-func (m *MockRelease) CreateAndPushTagToGitHub(ctx context.Context, pat, version, path string) error {
+func (m *MockRelease) CreateAndPushTagToGitHub(ctx context.Context, pat, version, path, commitSHA string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateAndPushTagToGitHub", ctx, pat, version, path)
+	ret := m.ctrl.Call(m, "CreateAndPushTagToGitHub", ctx, pat, version, path, commitSHA)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateAndPushTagToGitHub indicates an expected call of CreateAndPushTagToGitHub.
-func (mr *MockReleaseMockRecorder) CreateAndPushTagToGitHub(ctx, pat, version, path any) *gomock.Call {
+func (mr *MockReleaseMockRecorder) CreateAndPushTagToGitHub(ctx, pat, version, path, commitSHA any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAndPushTagToGitHub", reflect.TypeOf((*MockRelease)(nil).CreateAndPushTagToGitHub), ctx, pat, version, path)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAndPushTagToGitHub", reflect.TypeOf((*MockRelease)(nil).CreateAndPushTagToGitHub), ctx, pat, version, path, commitSHA)
 }
 
 // CreateAssets mocks base method.
@@ -127,6 +142,34 @@ func (mr *MockReleaseMockRecorder) GetAssets() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAssets", reflect.TypeOf((*MockRelease)(nil).GetAssets))
 }
 
+// GetFormulaFilePath mocks base method.
+func (m *MockRelease) GetFormulaFilePath() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFormulaFilePath")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetFormulaFilePath indicates an expected call of GetFormulaFilePath.
+func (mr *MockReleaseMockRecorder) GetFormulaFilePath() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFormulaFilePath", reflect.TypeOf((*MockRelease)(nil).GetFormulaFilePath))
+}
+
+// GetFormulaTemplate mocks base method.
+func (m *MockRelease) GetFormulaTemplate() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFormulaTemplate")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetFormulaTemplate indicates an expected call of GetFormulaTemplate.
+func (mr *MockReleaseMockRecorder) GetFormulaTemplate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFormulaTemplate", reflect.TypeOf((*MockRelease)(nil).GetFormulaTemplate))
+}
+
 // GetNotesContent mocks base method.
 func (m *MockRelease) GetNotesContent() string {
 	m.ctrl.T.Helper()
@@ -183,6 +226,21 @@ func (mr *MockReleaseMockRecorder) LoadReleaseNotes() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadReleaseNotes", reflect.TypeOf((*MockRelease)(nil).LoadReleaseNotes))
 }
 
+// OpenAssetFile mocks base method.
+func (m *MockRelease) OpenAssetFile(path string) (*os.File, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OpenAssetFile", path)
+	ret0, _ := ret[0].(*os.File)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OpenAssetFile indicates an expected call of OpenAssetFile.
+func (mr *MockReleaseMockRecorder) OpenAssetFile(path any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenAssetFile", reflect.TypeOf((*MockRelease)(nil).OpenAssetFile), path)
+}
+
 // ReleaseExists mocks base method.
 func (m *MockRelease) ReleaseExists(ctx context.Context, client *github.Client, version string) (bool, error) {
 	m.ctrl.T.Helper()
@@ -196,6 +254,35 @@ func (m *MockRelease) ReleaseExists(ctx context.Context, client *github.Client, 
 func (mr *MockReleaseMockRecorder) ReleaseExists(ctx, client, version any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExists", reflect.TypeOf((*MockRelease)(nil).ReleaseExists), ctx, client, version)
+}
+
+// RenderFormulaTemplate mocks base method.
+func (m *MockRelease) RenderFormulaTemplate() (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RenderFormulaTemplate")
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RenderFormulaTemplate indicates an expected call of RenderFormulaTemplate.
+func (mr *MockReleaseMockRecorder) RenderFormulaTemplate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenderFormulaTemplate", reflect.TypeOf((*MockRelease)(nil).RenderFormulaTemplate))
+}
+
+// SaveFormulaFile mocks base method.
+func (m *MockRelease) SaveFormulaFile(content string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SaveFormulaFile", content)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SaveFormulaFile indicates an expected call of SaveFormulaFile.
+func (mr *MockReleaseMockRecorder) SaveFormulaFile(content any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveFormulaFile", reflect.TypeOf((*MockRelease)(nil).SaveFormulaFile), content)
 }
 
 // UploadReleaseAsset mocks base method.

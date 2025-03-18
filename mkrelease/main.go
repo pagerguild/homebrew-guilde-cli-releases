@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -10,9 +12,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"text/template"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/google/go-github/v69/github"
 )
@@ -41,7 +48,13 @@ const (
 	fileType              = "zip"
 	mediaType             = "application/zip"
 	releaseNotesMediaType = "text/markdown"
+
+	// Formula constants
+	formulaFileName = "guilde-cli.rb"
 )
+
+//go:embed guilde-cli.rb.tmpl
+var formulaTemplate string
 
 // ReleaseAsset represents a binary release asset for a specific platform/arch
 type ReleaseAsset struct {
@@ -60,15 +73,26 @@ type Release interface {
 	GetAssets() []ReleaseAsset
 	GetNotesContent() string
 	GetRepoPath() string
-	// Uses go-get to create a new tag called `vX.X.X` where X.X.X is the version.
-	// If the tag already exists continue; just push the tags to origin.
-	CreateAndPushTagToGitHub(ctx context.Context, pat, version, path string) error
+	// Opens an asset file for reading. This makes file operations mockable.
+	OpenAssetFile(path string) (*os.File, error)
+	// Creates and pushes a tag to the specified commit
+	CreateAndPushTagToGitHub(ctx context.Context, pat, version, path, commitSHA string) error
 	CreateGitHubRelease(ctx context.Context, client *github.Client, version, notesContent string) (int64, error)
 	UploadReleaseAsset(ctx context.Context, client *github.Client, releaseID int64, name, mediaType string, file *os.File) error
 	ReleaseExists(ctx context.Context, client *github.Client, version string) (bool, error)
 	// CreateGitHubClient creates a new GitHub client that includes the
 	// authentication token in each request.
 	CreateGitHubClient(pat string) *github.Client
+	// Gets the formula template as a string
+	GetFormulaTemplate() string
+	// Gets the path where the formula file should be saved
+	GetFormulaFilePath() string
+	// Renders the formula template with the current release data
+	RenderFormulaTemplate() (string, error)
+	// Saves the rendered formula to the formula file
+	SaveFormulaFile(content string) error
+	// Commits the formula change and returns the commit SHA
+	CommitFormulaChange(ctx context.Context, pat, message string) (string, error)
 }
 
 // ReleaseImpl implements the Release interface
@@ -97,17 +121,24 @@ func (r *ReleaseImpl) ReleaseExists(ctx context.Context, client *github.Client, 
 }
 
 // CreateAndPushTagToGitHub implements Release.
-func (r *ReleaseImpl) CreateAndPushTagToGitHub(ctx context.Context, pat string, version string, path string) error {
+func (r *ReleaseImpl) CreateAndPushTagToGitHub(ctx context.Context, pat string, version string, path string, commitSHA string) error {
 	// Open the repository
 	repo, err := git.PlainOpen(r.repoPath)
 	if err != nil {
 		return fmt.Errorf("failed to open git repository: %w", err)
 	}
 
-	// Get the HEAD reference
-	headRef, err := repo.Head()
-	if err != nil {
-		return fmt.Errorf("failed to get HEAD reference: %w", err)
+	// Get the reference to the specified commit or HEAD if not provided
+	var hash plumbing.Hash
+	if commitSHA != "" {
+		hash = plumbing.NewHash(commitSHA)
+	} else {
+		// Get the HEAD reference
+		headRef, err := repo.Head()
+		if err != nil {
+			return fmt.Errorf("failed to get HEAD reference: %w", err)
+		}
+		hash = headRef.Hash()
 	}
 
 	// Create tag name (v + version)
@@ -120,7 +151,7 @@ func (r *ReleaseImpl) CreateAndPushTagToGitHub(ctx context.Context, pat string, 
 		fmt.Printf("Tag %s already exists, skipping creation\n", tagName)
 	} else {
 		// Create a new tag
-		_, err = repo.CreateTag(tagName, headRef.Hash(), &git.CreateTagOptions{
+		_, err = repo.CreateTag(tagName, hash, &git.CreateTagOptions{
 			Message: fmt.Sprintf("Release %s", tagName),
 		})
 		if err != nil {
@@ -161,15 +192,6 @@ func (r *ReleaseImpl) CreateGitHubClient(pat string) *github.Client {
 
 // CreateGitHubRelease implements Release.
 func (r *ReleaseImpl) CreateGitHubRelease(ctx context.Context, client *github.Client, version string, notesContent string) (int64, error) {
-	// Check if release already exists
-	exists, err := r.ReleaseExists(ctx, client, version)
-	if err != nil {
-		return 0, fmt.Errorf("failed to check if release exists: %w", err)
-	}
-	if exists {
-		return 0, fmt.Errorf("release %s already exists", tagName(version))
-	}
-
 	// Create a new release
 	tagName := tagName(version)
 	release, _, err := client.Repositories.CreateRelease(ctx, repoOwner, repoName, &github.RepositoryRelease{
@@ -299,8 +321,14 @@ func (r *ReleaseImpl) LoadReleaseNotes() error {
 	return nil
 }
 
+// OpenAssetFile implements the file opening functionality from the Release interface
+func (r *ReleaseImpl) OpenAssetFile(path string) (*os.File, error) {
+	return os.Open(path)
+}
+
 // ReleaseStrategy defines the steps to create a release
-func ReleaseStrategy(r Release, dirPath string) error {
+func ReleaseStrategy(ctx context.Context, r Release, dirPath string, pat string) error {
+	// Step 1: Create and validate assets
 	if err := r.CreateAssets(dirPath); err != nil {
 		return fmt.Errorf("failed to create assets: %w", err)
 	}
@@ -317,6 +345,72 @@ func ReleaseStrategy(r Release, dirPath string) error {
 		return fmt.Errorf("failed to load release notes: %w", err)
 	}
 
+	// Print checksums
+	for _, asset := range r.GetAssets() {
+		fmt.Printf("SHA256 (%s.%s) = %s\n", asset.Name, fileType, asset.Checksum)
+	}
+
+	version := r.GetVersion()
+
+	// Step 2: Create GitHub client (needed for release checks)
+	client := r.CreateGitHubClient(pat)
+
+	// Step 3: Check if release already exists
+	exists, err := r.ReleaseExists(ctx, client, version)
+	if err != nil {
+		return fmt.Errorf("failed to check if release exists: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("release %s already exists", tagName(version))
+	}
+
+	// Step 4: Generate and save the Homebrew formula
+	formula, err := r.RenderFormulaTemplate()
+	if err != nil {
+		return fmt.Errorf("failed to render formula: %w", err)
+	}
+
+	if err := r.SaveFormulaFile(formula); err != nil {
+		return fmt.Errorf("failed to save formula file: %w", err)
+	}
+
+	// Step 5: Commit the formula change
+	commitMsg := fmt.Sprintf("Update formula for release v%s", version)
+	commitSHA, err := r.CommitFormulaChange(ctx, pat, commitMsg)
+	if err != nil {
+		return fmt.Errorf("failed to commit formula change: %w", err)
+	}
+
+	fmt.Printf("Committed formula update with SHA: %s\n", commitSHA)
+
+	// Step 6: Create and push tag to the new commit
+	if err := r.CreateAndPushTagToGitHub(ctx, pat, version, r.GetRepoPath(), commitSHA); err != nil {
+		return fmt.Errorf("failed to create and push tag: %w", err)
+	}
+
+	// Step 7: Create GitHub release
+	releaseID, err := r.CreateGitHubRelease(ctx, client, version, r.GetNotesContent())
+	if err != nil {
+		return fmt.Errorf("failed to create GitHub release: %w", err)
+	}
+
+	// Step 8: Upload assets
+	for _, asset := range r.GetAssets() {
+		// Open the asset file using the interface method
+		file, err := r.OpenAssetFile(asset.Path)
+		if err != nil {
+			return fmt.Errorf("failed to open asset file %s: %w", asset.Path, err)
+		}
+
+		// Upload the asset
+		err = r.UploadReleaseAsset(ctx, client, releaseID, asset.Name, mediaType, file)
+		file.Close()
+		if err != nil {
+			return fmt.Errorf("failed to upload asset %s: %w", asset.Name, err)
+		}
+	}
+
+	fmt.Printf("Successfully created release v%s with all assets\n", version)
 	return nil
 }
 
@@ -333,6 +427,122 @@ func calculateSHA256(filePath string) (string, error) {
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// GetFormulaTemplate returns the Homebrew formula template
+func (r *ReleaseImpl) GetFormulaTemplate() string {
+	return formulaTemplate
+}
+
+// GetFormulaFilePath returns the path to the formula file
+func (r *ReleaseImpl) GetFormulaFilePath() string {
+	return filepath.Join(r.repoPath, formulaFileName)
+}
+
+// RenderFormulaTemplate renders the formula template with release data
+func (r *ReleaseImpl) RenderFormulaTemplate() (string, error) {
+	// Find the asset checksums
+	var macOSArmChecksum, macOSIntelChecksum, linuxArmChecksum, linuxIntelChecksum string
+	for _, asset := range r.assets {
+		switch asset.Name {
+		case assetNameMacosArm64:
+			macOSArmChecksum = asset.Checksum
+		case assetNameMacosIntel:
+			macOSIntelChecksum = asset.Checksum
+		case assetNameLinuxArm64:
+			linuxArmChecksum = asset.Checksum
+		case assetNameLinuxIntel:
+			linuxIntelChecksum = asset.Checksum
+		}
+	}
+
+	// Create the template data
+	data := struct {
+		Version            string
+		MacOSArmChecksum   string
+		MacOSIntelChecksum string
+		LinuxArmChecksum   string
+		LinuxIntelChecksum string
+	}{
+		Version:            r.version,
+		MacOSArmChecksum:   macOSArmChecksum,
+		MacOSIntelChecksum: macOSIntelChecksum,
+		LinuxArmChecksum:   linuxArmChecksum,
+		LinuxIntelChecksum: linuxIntelChecksum,
+	}
+
+	// Parse the template
+	tmpl, err := template.New("formula").Parse(r.GetFormulaTemplate())
+	if err != nil {
+		return "", fmt.Errorf("failed to parse formula template: %w", err)
+	}
+
+	// Render the template
+	var rendered bytes.Buffer
+	if err := tmpl.Execute(&rendered, data); err != nil {
+		return "", fmt.Errorf("failed to render formula template: %w", err)
+	}
+
+	return rendered.String(), nil
+}
+
+// SaveFormulaFile saves the rendered formula to a file
+func (r *ReleaseImpl) SaveFormulaFile(content string) error {
+	formulaPath := r.GetFormulaFilePath()
+	err := os.WriteFile(formulaPath, []byte(content), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write formula file: %w", err)
+	}
+	return nil
+}
+
+// CommitFormulaChange commits the formula change and returns the commit SHA
+func (r *ReleaseImpl) CommitFormulaChange(ctx context.Context, pat, message string) (string, error) {
+	// Open the repository
+	repo, err := git.PlainOpen(r.repoPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open git repository: %w", err)
+	}
+
+	// Get the worktree
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return "", fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	// Add the formula file to the staging area
+	formulaPath := r.GetFormulaFilePath()
+	_, err = worktree.Add(filepath.Base(formulaPath))
+	if err != nil {
+		return "", fmt.Errorf("failed to add formula file to staging: %w", err)
+	}
+
+	// Commit the change
+	commitOptions := &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Guilde CLI Release Bot",
+			Email: "bot@pagerguild.com",
+			When:  time.Now(),
+		},
+	}
+
+	hash, err := worktree.Commit(message, commitOptions)
+	if err != nil {
+		return "", fmt.Errorf("failed to commit formula change: %w", err)
+	}
+
+	// Push the commit to the origin
+	err = repo.Push(&git.PushOptions{
+		Auth: &githttp.BasicAuth{
+			Username: "git", // This can be any non-empty string
+			Password: pat,   // PAT is used as the password
+		},
+	})
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return "", fmt.Errorf("failed to push commit: %w", err)
+	}
+
+	return hash.String(), nil
 }
 
 func main() {
@@ -361,59 +571,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create a context for GitHub operations
+	ctx := context.Background()
+
 	release := &ReleaseImpl{
 		version:  version,
 		repoPath: repoPath,
 	}
 
-	// Step 1: Set up assets and validate
-	if err := ReleaseStrategy(release, dirPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create release: %v\n", err)
+	// Execute the release strategy
+	if err := ReleaseStrategy(ctx, release, dirPath, pat); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to execute release strategy: %v\n", err)
 		os.Exit(1)
 	}
-
-	// Print checksums
-	for _, asset := range release.GetAssets() {
-		fmt.Printf("SHA256 (%s.%s) = %s\n", asset.Name, fileType, asset.Checksum)
-	}
-
-	// Create a context for GitHub operations
-	ctx := context.Background()
-
-	// Step 2: Create and push tag
-	if err := release.CreateAndPushTagToGitHub(ctx, pat, version, repoPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create and push tag: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Step 3: Create GitHub client
-	client := release.CreateGitHubClient(pat)
-
-	// Step 4: Create GitHub release
-	releaseID, err := release.CreateGitHubRelease(ctx, client, version, release.GetNotesContent())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create GitHub release: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Step 5: Upload assets
-	for _, asset := range release.GetAssets() {
-		// Open the asset file
-		file, err := os.Open(asset.Path)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to open asset file %s: %v\n", asset.Path, err)
-			os.Exit(1)
-		}
-
-		// Upload the asset
-		err = release.UploadReleaseAsset(ctx, client, releaseID, asset.Name, mediaType, file)
-		if err != nil {
-			file.Close()
-			fmt.Fprintf(os.Stderr, "Failed to upload asset %s: %v\n", asset.Name, err)
-			os.Exit(1)
-		}
-		file.Close()
-	}
-
-	fmt.Printf("Successfully created release v%s with all assets\n", version)
 }

@@ -18,3 +18,13 @@ Maintain a "Happy Path" test that uses a mock object to validate the sequence.
 Whenever a new strategy step is added, make sure it's reflected in the "Happy Path" test.
 
 Run `just lint_and_test` after changes, and fix whatever error messages you get back.
+
+## About mocks
+
+If you need to do os.Open stuff, you can move those functions onto the Release interface.
+
+If you change the interface, make sure to run `go generate .` in order to update the mock Release object.
+
+Just make sure it's an atomic action you're stuffing into that function, so that it's properly mockable.
+
+NEVER mock / replease builtins or standard library stuff
