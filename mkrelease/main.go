@@ -29,7 +29,7 @@ import (
 
 const (
 	repoOwner = "pagerguild"
-	repoName  = "guilde-cli-releases"
+	repoName  = "homebrew-guilde-cli-releases"
 )
 
 const (
@@ -539,10 +539,13 @@ func (r *ReleaseImpl) CommitFormulaChange(ctx context.Context, pat, message stri
 	}
 
 	// Add the formula file to the staging area
-	formulaPath := r.GetFormulaFilePath()
-	_, err = worktree.Add(filepath.Base(formulaPath))
+	formulaPath, err := filepath.Rel(r.repoPath, r.GetFormulaFilePath())
 	if err != nil {
-		return "", fmt.Errorf("failed to add formula file to staging: %w", err)
+		return "", fmt.Errorf("failed to get relative path for formula file: %w", err)
+	}
+	_, err = worktree.Add(formulaPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to add formula file to staging (path: %s): %w", formulaPath, err)
 	}
 
 	// Commit the change
