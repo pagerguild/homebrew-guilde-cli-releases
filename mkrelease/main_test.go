@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -110,6 +111,9 @@ func TestReleaseStrategy_HappyPath(t *testing.T) {
 
 		mock.EXPECT().OpenAssetFile(testAssets[1].Path).Return(tmpFile2, nil),
 		mock.EXPECT().UploadReleaseAsset(ctx, mockClient, testReleaseID, testAssets[1].Name, mediaType, tmpFile2).Return(nil),
+
+		// Step 10: Deploy to Vercel
+		mock.EXPECT().DeployToVercel(ctx).Return(nil),
 	)
 
 	// Execute the strategy
@@ -411,4 +415,58 @@ func TestReleaseImpl_GetFormulaFilePath(t *testing.T) {
 func TestReleaseImpl_DownloadReleaseAssetsAndNotes(t *testing.T) {
 	// We'll skip this test as it requires more complex setup that we'll handle later
 	t.Skip("This test requires more complex setup and will be implemented later")
+}
+
+// TestDeployToVercel tests the Vercel deployment functionality
+func TestDeployToVercel(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test in short mode")
+	}
+
+	// Create a temporary directory to simulate a repository
+	tmpRepo, err := os.MkdirTemp("", "test-repo")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpRepo)
+
+	// Create a release implementation with the test repo path
+	r := &ReleaseImpl{
+		version:  "1.2.3",
+		repoPath: tmpRepo,
+	}
+
+	// Create a mock vercel command for testing
+	// In a real test, you would use a mock command runner or dependency injection
+	// Here we're just testing the execution logic by creating a mock script
+
+	mockVercelPath := filepath.Join(tmpRepo, "mock-vercel")
+	mockScript := `#!/bin/sh
+echo "Mock Vercel executed with args: $@"
+exit 0
+`
+	if err := os.WriteFile(mockVercelPath, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("Failed to write mock vercel script: %v", err)
+	}
+
+	// Back up the original exec.Command function and restore it after the test
+	origExecCommand := execCommand
+	defer func() { execCommand = origExecCommand }()
+
+	// Mock the exec.Command to use our script instead of the real vercel
+	execCommand = func(name string, args ...string) *exec.Cmd {
+		if strings.Contains(name, "vercel") {
+			return exec.Command(mockVercelPath, args...)
+		}
+		return exec.Command(name, args...)
+	}
+
+	// Execute the deployment
+	ctx := context.Background()
+	err = r.DeployToVercel(ctx)
+
+	// Check the result
+	if err != nil {
+		t.Errorf("DeployToVercel failed: %v", err)
+	}
 }

@@ -128,6 +128,20 @@ func (mr *MockReleaseMockRecorder) CreateGitHubRelease(ctx, client, version, not
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateGitHubRelease", reflect.TypeOf((*MockRelease)(nil).CreateGitHubRelease), ctx, client, version, notesContent)
 }
 
+// DeployToVercel mocks base method.
+func (m *MockRelease) DeployToVercel(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeployToVercel", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeployToVercel indicates an expected call of DeployToVercel.
+func (mr *MockReleaseMockRecorder) DeployToVercel(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeployToVercel", reflect.TypeOf((*MockRelease)(nil).DeployToVercel), ctx)
+}
+
 // DownloadReleaseAssetsAndNotes mocks base method.
 func (m *MockRelease) DownloadReleaseAssetsAndNotes(ctx context.Context, client *github.Client, dirPath, pat string) error {
 	m.ctrl.T.Helper()

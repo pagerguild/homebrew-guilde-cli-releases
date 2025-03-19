@@ -6,4 +6,4 @@
     cd {{dir}} && go test ./...
 
 build version:
-    cd mkrelease && go run . {{version}} ../build/ ../
+    cd mkrelease && go run . {{version}}  ../

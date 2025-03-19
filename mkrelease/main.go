@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -100,6 +101,8 @@ type Release interface {
 	CommitFormulaChange(ctx context.Context, pat, message string) (string, error)
 	// Downloads release assets and notes from the pagerguild/pagerguild repository
 	DownloadReleaseAssetsAndNotes(ctx context.Context, client *github.Client, dirPath string, pat string) error
+	// Deploys the release to Vercel
+	DeployToVercel(ctx context.Context) error
 }
 
 // ReleaseImpl implements the Release interface
@@ -570,6 +573,38 @@ func (r *ReleaseImpl) CommitFormulaChange(ctx context.Context, pat, message stri
 	return hash.String(), nil
 }
 
+// DeployToVercel deploys the release to Vercel
+func (r *ReleaseImpl) DeployToVercel(ctx context.Context) error {
+	// Run vercel command from the repository root
+	vercelCmd := execCommand("/opt/homebrew/bin/vercel")
+	vercelCmd.Dir = r.repoPath
+	vercelCmd.Stdout = os.Stdout
+	vercelCmd.Stderr = os.Stderr
+
+	fmt.Println("Running vercel deployment...")
+	if err := vercelCmd.Run(); err != nil {
+		return fmt.Errorf("failed to run vercel command: %w", err)
+	}
+
+	// Run vercel --prod command
+	vercelProdCmd := execCommand("/opt/homebrew/bin/vercel", "--prod")
+	vercelProdCmd.Dir = r.repoPath
+	vercelProdCmd.Stdout = os.Stdout
+	vercelProdCmd.Stderr = os.Stderr
+
+	fmt.Println("Running vercel production deployment...")
+	if err := vercelProdCmd.Run(); err != nil {
+		return fmt.Errorf("failed to run vercel --prod command: %w", err)
+	}
+
+	fmt.Println("Successfully deployed to Vercel")
+	return nil
+}
+
+// execCommand is a variable that stores the exec.Command function.
+// This allows us to replace it during testing to mock command execution.
+var execCommand = exec.Command
+
 // ReleaseStrategy defines the steps to create a release
 func ReleaseStrategy(ctx context.Context, r Release, dirPath string, pat string) error {
 	// Create GitHub client (needed for download and release checks)
@@ -652,18 +687,26 @@ func ReleaseStrategy(ctx context.Context, r Release, dirPath string, pat string)
 	}
 
 	fmt.Printf("Successfully created release v%s with all assets\n", version)
+
+	// Step 9: Deploy to Vercel
+	if err := r.DeployToVercel(ctx); err != nil {
+		return fmt.Errorf("failed to deploy to Vercel: %w", err)
+	}
+
 	return nil
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		fmt.Fprintf(os.Stderr, "Usage: %s RELEASE_VERSION DIRECTORY_PATH REPO_PATH\n", os.Args[0])
+	if len(os.Args) != 3 {
+		fmt.Fprintf(os.Stderr, "Usage: %s RELEASE_VERSION REPO_PATH\n", os.Args[0])
 		os.Exit(1)
 	}
 
 	version := os.Args[1]
-	dirPath := os.Args[2]
-	repoPath := os.Args[3]
+	repoPath := os.Args[2]
+
+	// Hard-code dirPath to "public" in the repository root
+	dirPath := filepath.Join(repoPath, "public")
 
 	// Strip 'v' prefix if present
 	version = strings.TrimPrefix(version, "v")
