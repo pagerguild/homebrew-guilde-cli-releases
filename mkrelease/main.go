@@ -461,7 +461,7 @@ func (r *ReleaseImpl) GetFormulaTemplate() string {
 
 // GetFormulaFilePath returns the path to the formula file
 func (r *ReleaseImpl) GetFormulaFilePath() string {
-	return filepath.Join(r.repoPath, formulaFileName)
+	return filepath.Join(r.repoPath, "Formula", formulaFileName)
 }
 
 // RenderFormulaTemplate renders the formula template with release data

@@ -399,7 +399,7 @@ func TestReleaseImpl_GetFormulaFilePath(t *testing.T) {
 		repoPath: testPath,
 	}
 
-	expected := filepath.Join(testPath, formulaFileName)
+	expected := filepath.Join(testPath, "Formula", formulaFileName)
 	actual := r.GetFormulaFilePath()
 
 	if actual != expected {
