@@ -6,4 +6,5 @@
     cd {{dir}} && go test ./...
 
 build version:
+    rm public/* Formula/*
     cd mkrelease && go run . {{version}}  ../
