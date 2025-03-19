@@ -78,32 +78,33 @@ func TestReleaseStrategy_HappyPath(t *testing.T) {
 
 	// Expected sequence of operations
 	gomock.InOrder(
-		// Step 1: Set up and validate assets
-		mock.EXPECT().CreateAssets(testDir).Return(nil),
-		mock.EXPECT().Validate().Return(nil),
-		mock.EXPECT().ComputeChecksums().Return(nil),
-		mock.EXPECT().LoadReleaseNotes().Return(nil),
-
-		// Step 2: Create GitHub client
+		// Step 1: Create GitHub client
 		mock.EXPECT().CreateGitHubClient(testPAT).Return(mockClient),
 
-		// Step 3: Check if release exists
+		// Step 2: Download assets and release notes
+		mock.EXPECT().DownloadReleaseAssetsAndNotes(ctx, mockClient, testDir).Return(nil),
+
+		// Step 3: Validate assets
+		mock.EXPECT().Validate().Return(nil),
+		mock.EXPECT().ComputeChecksums().Return(nil),
+
+		// Step 4: Check if release exists
 		mock.EXPECT().ReleaseExists(ctx, mockClient, testVersion).Return(false, nil),
 
-		// Step 4: Generate and save the Homebrew formula
+		// Step 5: Generate and save the Homebrew formula
 		mock.EXPECT().RenderFormulaTemplate().Return(testFormula, nil),
 		mock.EXPECT().SaveFormulaFile(testFormula).Return(nil),
 
-		// Step 5: Commit the formula change
+		// Step 6: Commit the formula change
 		mock.EXPECT().CommitFormulaChange(ctx, testPAT, gomock.Any()).Return(testCommitSHA, nil),
 
-		// Step 6: Create and push tag
+		// Step 7: Create and push tag
 		mock.EXPECT().CreateAndPushTagToGitHub(ctx, testPAT, testVersion, testRepo, testCommitSHA).Return(nil),
 
-		// Step 7: Create GitHub release
+		// Step 8: Create GitHub release
 		mock.EXPECT().CreateGitHubRelease(ctx, mockClient, testVersion, testNotes).Return(testReleaseID, nil),
 
-		// Step 8: Upload assets (one per asset)
+		// Step 9: Upload assets (one per asset)
 		mock.EXPECT().OpenAssetFile(testAssets[0].Path).Return(tmpFile1, nil),
 		mock.EXPECT().UploadReleaseAsset(ctx, mockClient, testReleaseID, testAssets[0].Name, mediaType, tmpFile1).Return(nil),
 
@@ -144,16 +145,17 @@ func TestReleaseStrategy_ReleaseAlreadyExists(t *testing.T) {
 
 	// Expected sequence of operations
 	gomock.InOrder(
-		// Step 1: Set up and validate assets
-		mock.EXPECT().CreateAssets(testDir).Return(nil),
-		mock.EXPECT().Validate().Return(nil),
-		mock.EXPECT().ComputeChecksums().Return(nil),
-		mock.EXPECT().LoadReleaseNotes().Return(nil),
-
-		// Step 2: Create GitHub client
+		// Step 1: Create GitHub client
 		mock.EXPECT().CreateGitHubClient(testPAT).Return(mockClient),
 
-		// Step 3: Check if release exists - this time it DOES exist
+		// Step 2: Download assets and release notes
+		mock.EXPECT().DownloadReleaseAssetsAndNotes(ctx, mockClient, testDir).Return(nil),
+
+		// Step 3: Validate assets
+		mock.EXPECT().Validate().Return(nil),
+		mock.EXPECT().ComputeChecksums().Return(nil),
+
+		// Step 4: Check if release exists - this time it DOES exist
 		mock.EXPECT().ReleaseExists(ctx, mockClient, testVersion).Return(true, nil),
 	)
 
@@ -403,4 +405,10 @@ func TestReleaseImpl_GetFormulaFilePath(t *testing.T) {
 	if actual != expected {
 		t.Errorf("GetFormulaFilePath() = %v, want %v", actual, expected)
 	}
+}
+
+// TestReleaseImpl_DownloadReleaseAssetsAndNotes tests the downloading of release assets from GitHub
+func TestReleaseImpl_DownloadReleaseAssetsAndNotes(t *testing.T) {
+	// We'll skip this test as it requires more complex setup that we'll handle later
+	t.Skip("This test requires more complex setup and will be implemented later")
 }

@@ -128,6 +128,20 @@ func (mr *MockReleaseMockRecorder) CreateGitHubRelease(ctx, client, version, not
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateGitHubRelease", reflect.TypeOf((*MockRelease)(nil).CreateGitHubRelease), ctx, client, version, notesContent)
 }
 
+// DownloadReleaseAssetsAndNotes mocks base method.
+func (m *MockRelease) DownloadReleaseAssetsAndNotes(ctx context.Context, client *github.Client, dirPath string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DownloadReleaseAssetsAndNotes", ctx, client, dirPath)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DownloadReleaseAssetsAndNotes indicates an expected call of DownloadReleaseAssetsAndNotes.
+func (mr *MockReleaseMockRecorder) DownloadReleaseAssetsAndNotes(ctx, client, dirPath any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DownloadReleaseAssetsAndNotes", reflect.TypeOf((*MockRelease)(nil).DownloadReleaseAssetsAndNotes), ctx, client, dirPath)
+}
+
 // GetAssets mocks base method.
 func (m *MockRelease) GetAssets() []ReleaseAsset {
 	m.ctrl.T.Helper()

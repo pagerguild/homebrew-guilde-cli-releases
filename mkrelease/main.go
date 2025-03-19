@@ -32,6 +32,11 @@ const (
 )
 
 const (
+	sourceRepoOwner = "pagerguild"
+	sourceRepoName  = "pagerguild"
+)
+
+const (
 	assetNameMacosArm64 = "guilde-cli-darwin-arm64"
 	assetNameMacosIntel = "guilde-cli-darwin-amd64"
 	assetNameLinuxArm64 = "guilde-cli-linux-arm64"
@@ -93,6 +98,8 @@ type Release interface {
 	SaveFormulaFile(content string) error
 	// Commits the formula change and returns the commit SHA
 	CommitFormulaChange(ctx context.Context, pat, message string) (string, error)
+	// Downloads release assets and notes from the pagerguild/pagerguild repository
+	DownloadReleaseAssetsAndNotes(ctx context.Context, client *github.Client, dirPath string) error
 }
 
 // ReleaseImpl implements the Release interface
@@ -326,13 +333,112 @@ func (r *ReleaseImpl) OpenAssetFile(path string) (*os.File, error) {
 	return os.Open(path)
 }
 
-// ReleaseStrategy defines the steps to create a release
-func ReleaseStrategy(ctx context.Context, r Release, dirPath string, pat string) error {
-	// Step 1: Create and validate assets
-	if err := r.CreateAssets(dirPath); err != nil {
-		return fmt.Errorf("failed to create assets: %w", err)
+// DownloadReleaseAssetsAndNotes downloads release assets and notes from the pagerguild/pagerguild repository
+func (r *ReleaseImpl) DownloadReleaseAssetsAndNotes(ctx context.Context, client *github.Client, dirPath string) error {
+	version := r.GetVersion()
+	tag := tagName(version)
+
+	// Get the release by tag
+	release, _, err := client.Repositories.GetReleaseByTag(ctx, sourceRepoOwner, sourceRepoName, tag)
+	if err != nil {
+		return fmt.Errorf("failed to get release from %s/%s with tag %s: %w", sourceRepoOwner, sourceRepoName, tag, err)
 	}
 
+	// Get release notes
+	r.notesContent = release.GetBody()
+	r.notesPath = filepath.Join(dirPath, releaseNotesFileName)
+
+	// Save release notes to file
+	err = os.WriteFile(r.notesPath, []byte(r.notesContent), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to save release notes: %w", err)
+	}
+	fmt.Printf("Saved release notes to %s\n", r.notesPath)
+
+	// Prepare assets
+	assetNames := []string{
+		assetNameMacosArm64,
+		assetNameMacosIntel,
+		assetNameLinuxArm64,
+		assetNameLinuxIntel,
+	}
+	assets := make([]ReleaseAsset, 0, len(assetNames))
+
+	// Download each asset
+	for _, name := range assetNames {
+		// Look for the asset in the release
+		var assetURL string
+		for _, a := range release.Assets {
+			downloadName := fmt.Sprintf("%s.%s", name, fileType)
+			if a.GetName() == downloadName {
+				assetURL = a.GetBrowserDownloadURL()
+				break
+			}
+		}
+
+		if assetURL == "" {
+			return fmt.Errorf("asset %s.%s not found in release", name, fileType)
+		}
+
+		// Download the asset
+		localPath := filepath.Join(dirPath, fmt.Sprintf("%s.%s", name, fileType))
+		fmt.Printf("Downloading asset %s to %s\n", name, localPath)
+
+		if err := downloadFile(assetURL, localPath); err != nil {
+			return fmt.Errorf("failed to download asset %s: %w", name, err)
+		}
+
+		asset := ReleaseAsset{
+			Name: name,
+			Path: localPath,
+		}
+		assets = append(assets, asset)
+	}
+
+	r.assets = assets
+	return nil
+}
+
+// Helper function to download a file from a URL
+func downloadFile(url, filepath string) error {
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer out.Close()
+
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("failed to GET from url: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to copy response body to file: %w", err)
+	}
+
+	return nil
+}
+
+// ReleaseStrategy defines the steps to create a release
+func ReleaseStrategy(ctx context.Context, r Release, dirPath string, pat string) error {
+	// Create GitHub client (needed for download and release checks)
+	client := r.CreateGitHubClient(pat)
+
+	// Step 1: Download assets and release notes from pagerguild/pagerguild
+	if err := r.DownloadReleaseAssetsAndNotes(ctx, client, dirPath); err != nil {
+		return fmt.Errorf("failed to download release assets: %w", err)
+	}
+
+	// Step 2: Validate assets
 	if err := r.Validate(); err != nil {
 		return fmt.Errorf("release validation failed: %w", err)
 	}
@@ -341,19 +447,12 @@ func ReleaseStrategy(ctx context.Context, r Release, dirPath string, pat string)
 		return fmt.Errorf("checksum computation failed: %w", err)
 	}
 
-	if err := r.LoadReleaseNotes(); err != nil {
-		return fmt.Errorf("failed to load release notes: %w", err)
-	}
-
 	// Print checksums
 	for _, asset := range r.GetAssets() {
 		fmt.Printf("SHA256 (%s.%s) = %s\n", asset.Name, fileType, asset.Checksum)
 	}
 
 	version := r.GetVersion()
-
-	// Step 2: Create GitHub client (needed for release checks)
-	client := r.CreateGitHubClient(pat)
 
 	// Step 3: Check if release already exists
 	exists, err := r.ReleaseExists(ctx, client, version)
