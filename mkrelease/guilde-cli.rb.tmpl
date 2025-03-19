@@ -1,31 +1,31 @@
 class GuildeCli < Formula
   desc "Guilde Command Line Interface"
-  homepage "https://github.com/pagerguild/guilde-cli-releases"
+  homepage "https://github.com/pagerguild/homebrew-guilde-cli-releases"
   version "{{.Version}}"
 
   on_macos do
     on_arm do
-      url "https://github.com/pagerguild/guilde-cli-releases/releases/download/v{{.Version}}/guilde-cli-darwin-arm64.zip"
+      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v{{.Version}}/guilde-cli-darwin-arm64.zip"
       sha256 "{{.MacOSArmChecksum}}"
     end
     on_intel do
-      url "https://github.com/pagerguild/guilde-cli-releases/releases/download/v{{.Version}}/guilde-cli-darwin-amd64.zip"
+      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v{{.Version}}/guilde-cli-darwin-amd64.zip"
       sha256 "{{.MacOSIntelChecksum}}"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/pagerguild/guilde-cli-releases/releases/download/v{{.Version}}/guilde-cli-linux-arm64.zip"
+      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v{{.Version}}/guilde-cli-linux-arm64.zip"
       sha256 "{{.LinuxArmChecksum}}"
     end
     on_intel do
-      url "https://github.com/pagerguild/guilde-cli-releases/releases/download/v{{.Version}}/guilde-cli-linux-amd64.zip"
+      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v{{.Version}}/guilde-cli-linux-amd64.zip"
       sha256 "{{.LinuxIntelChecksum}}"
     end
   end
 
   def install
-    bin.install "guilde-cli"
+    bin.install "bin/guilde-cli"
   end
 end
