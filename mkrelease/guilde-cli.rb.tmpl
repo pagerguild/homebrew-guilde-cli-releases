@@ -5,22 +5,22 @@ class GuildeCli < Formula
 
   on_macos do
     on_arm do
-      url "https://guilde-cli-releases.vercel.app/guilde-cli-darwin-arm64.zip"
+      url "https://guilde-cli-releases.vercel.app/guilde-cli-{{- .Version}}-darwin-arm64.zip"
       sha256 "{{.MacOSArmChecksum}}"
     end
     on_intel do
-      url "https://guilde-cli-releases.vercel.app/guilde-cli-darwin-amd64.zip"
+      url "https://guilde-cli-releases.vercel.app/guilde-cli-{{- .Version}}-darwin-amd64.zip"
       sha256 "{{.MacOSIntelChecksum}}"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://guilde-cli-releases.vercel.app/guilde-cli-linux-arm64.zip"
+      url "https://guilde-cli-releases.vercel.app/guilde-cli-{{- .Version}}-linux-arm64.zip"
       sha256 "{{.LinuxArmChecksum}}"
     end
     on_intel do
-      url "https://guilde-cli-releases.vercel.app/guilde-cli-linux-amd64.zip"
+      url "https://guilde-cli-releases.vercel.app/guilde-cli-{{- .Version}}-linux-amd64.zip"
       sha256 "{{.LinuxIntelChecksum}}"
     end
   end

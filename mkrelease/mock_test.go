@@ -86,17 +86,17 @@ func (mr *MockReleaseMockRecorder) CreateAndPushTagToGitHub(ctx, pat, version, p
 }
 
 // CreateAssets mocks base method.
-func (m *MockRelease) CreateAssets(dirPath string) error {
+func (m *MockRelease) CreateAssets(dirPath, version string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateAssets", dirPath)
+	ret := m.ctrl.Call(m, "CreateAssets", dirPath, version)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateAssets indicates an expected call of CreateAssets.
-func (mr *MockReleaseMockRecorder) CreateAssets(dirPath any) *gomock.Call {
+func (mr *MockReleaseMockRecorder) CreateAssets(dirPath, version any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAssets", reflect.TypeOf((*MockRelease)(nil).CreateAssets), dirPath)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAssets", reflect.TypeOf((*MockRelease)(nil).CreateAssets), dirPath, version)
 }
 
 // CreateGitHubClient mocks base method.

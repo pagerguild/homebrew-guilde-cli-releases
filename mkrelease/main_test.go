@@ -321,7 +321,8 @@ func TestTagName(t *testing.T) {
 
 func TestReleaseImpl_CreateAssets(t *testing.T) {
 	r := &ReleaseImpl{}
-	err := r.CreateAssets("/test/path")
+	testVersion := "1.2.3"
+	err := r.CreateAssets("/test/path", testVersion)
 	if err != nil {
 		t.Errorf("ReleaseImpl.CreateAssets() unexpected error = %v", err)
 	}
@@ -332,12 +333,12 @@ func TestReleaseImpl_CreateAssets(t *testing.T) {
 		t.Errorf("ReleaseImpl.CreateAssets() created %d assets, want %d", len(assets), expectedCount)
 	}
 
-	// Check that all expected asset names are present
+	// Check that all expected asset names are present with version
 	expectedNames := map[string]bool{
-		assetNameMacosArm64: false,
-		assetNameMacosIntel: false,
-		assetNameLinuxArm64: false,
-		assetNameLinuxIntel: false,
+		assetNameMacosArm64.String(testVersion): false,
+		assetNameMacosIntel.String(testVersion): false,
+		assetNameLinuxArm64.String(testVersion): false,
+		assetNameLinuxIntel.String(testVersion): false,
 	}
 
 	for _, asset := range assets {
@@ -365,13 +366,14 @@ func TestReleaseImpl_CreateAssets(t *testing.T) {
 
 func TestReleaseImpl_RenderFormulaTemplate(t *testing.T) {
 	// Create a ReleaseImpl with assets and checksums
+	version := "1.2.3"
 	r := &ReleaseImpl{
-		version: "1.2.3",
+		version: version,
 		assets: []ReleaseAsset{
-			{Name: assetNameMacosArm64, Path: "/path/darwin-arm64.zip", Checksum: "mac-arm-checksum"},
-			{Name: assetNameMacosIntel, Path: "/path/darwin-amd64.zip", Checksum: "mac-intel-checksum"},
-			{Name: assetNameLinuxArm64, Path: "/path/linux-arm64.zip", Checksum: "linux-arm-checksum"},
-			{Name: assetNameLinuxIntel, Path: "/path/linux-amd64.zip", Checksum: "linux-intel-checksum"},
+			{Name: assetNameMacosArm64.String(version), Path: "/path/darwin-arm64.zip", Checksum: "mac-arm-checksum"},
+			{Name: assetNameMacosIntel.String(version), Path: "/path/darwin-amd64.zip", Checksum: "mac-intel-checksum"},
+			{Name: assetNameLinuxArm64.String(version), Path: "/path/linux-arm64.zip", Checksum: "linux-arm-checksum"},
+			{Name: assetNameLinuxIntel.String(version), Path: "/path/linux-amd64.zip", Checksum: "linux-intel-checksum"},
 		},
 	}
 

@@ -37,12 +37,22 @@ const (
 	sourceRepoName  = "pagerguild"
 )
 
+type ReleaseAssetName string
+
 const (
-	assetNameMacosArm64 = "guilde-cli-darwin-arm64"
-	assetNameMacosIntel = "guilde-cli-darwin-amd64"
-	assetNameLinuxArm64 = "guilde-cli-linux-arm64"
-	assetNameLinuxIntel = "guilde-cli-linux-amd64"
+	assetNameMacosArm64 ReleaseAssetName = "guilde-cli-%s-darwin-arm64"
+	assetNameMacosIntel ReleaseAssetName = "guilde-cli-%s-darwin-amd64"
+	assetNameLinuxArm64 ReleaseAssetName = "guilde-cli-%s-linux-arm64"
+	assetNameLinuxIntel ReleaseAssetName = "guilde-cli-%s-linux-amd64"
 )
+
+func (r ReleaseAssetName) String(version string) string {
+	if version == "" {
+		return string(r)
+	}
+	version = strings.TrimPrefix(version, "v")
+	return fmt.Sprintf(string(r), version)
+}
 
 const (
 	releaseNotesFileName = "RELEASE_NOTES.md"
@@ -74,7 +84,7 @@ type Release interface {
 	Validate() error
 	ComputeChecksums() error
 	LoadReleaseNotes() error
-	CreateAssets(dirPath string) error
+	CreateAssets(dirPath, version string) error
 	GetVersion() string
 	GetAssets() []ReleaseAsset
 	GetNotesContent() string
@@ -265,12 +275,12 @@ func (r *ReleaseImpl) GetRepoPath() string {
 }
 
 // CreateAssets populates the release assets from the given directory
-func (r *ReleaseImpl) CreateAssets(dirPath string) error {
+func (r *ReleaseImpl) CreateAssets(dirPath, version string) error {
 	assetNames := []string{
-		assetNameMacosArm64,
-		assetNameMacosIntel,
-		assetNameLinuxArm64,
-		assetNameLinuxIntel,
+		assetNameMacosArm64.String(version),
+		assetNameMacosIntel.String(version),
+		assetNameLinuxArm64.String(version),
+		assetNameLinuxIntel.String(version),
 	}
 
 	assets := make([]ReleaseAsset, 0, len(assetNames))
@@ -360,10 +370,10 @@ func (r *ReleaseImpl) DownloadReleaseAssetsAndNotes(ctx context.Context, client 
 
 	// Prepare assets
 	assetNames := []string{
-		assetNameMacosArm64,
-		assetNameMacosIntel,
-		assetNameLinuxArm64,
-		assetNameLinuxIntel,
+		assetNameMacosArm64.String(version),
+		assetNameMacosIntel.String(version),
+		assetNameLinuxArm64.String(version),
+		assetNameLinuxIntel.String(version),
 	}
 	assets := make([]ReleaseAsset, 0, len(assetNames))
 
@@ -473,13 +483,13 @@ func (r *ReleaseImpl) RenderFormulaTemplate() (string, error) {
 	var macOSArmChecksum, macOSIntelChecksum, linuxArmChecksum, linuxIntelChecksum string
 	for _, asset := range r.assets {
 		switch asset.Name {
-		case assetNameMacosArm64:
+		case assetNameMacosArm64.String(r.version):
 			macOSArmChecksum = asset.Checksum
-		case assetNameMacosIntel:
+		case assetNameMacosIntel.String(r.version):
 			macOSIntelChecksum = asset.Checksum
-		case assetNameLinuxArm64:
+		case assetNameLinuxArm64.String(r.version):
 			linuxArmChecksum = asset.Checksum
-		case assetNameLinuxIntel:
+		case assetNameLinuxIntel.String(r.version):
 			linuxIntelChecksum = asset.Checksum
 		}
 	}
