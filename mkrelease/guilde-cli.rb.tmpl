@@ -26,6 +26,6 @@ class GuildeCli < Formula
   end
 
   def install
-    bin.install "guilde-cli"
+    bin.install "guilde"
   end
 end
