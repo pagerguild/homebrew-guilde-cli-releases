@@ -99,7 +99,7 @@ type Release interface {
 	// Commits the formula change and returns the commit SHA
 	CommitFormulaChange(ctx context.Context, pat, message string) (string, error)
 	// Downloads release assets and notes from the pagerguild/pagerguild repository
-	DownloadReleaseAssetsAndNotes(ctx context.Context, client *github.Client, dirPath string) error
+	DownloadReleaseAssetsAndNotes(ctx context.Context, client *github.Client, dirPath string, pat string) error
 }
 
 // ReleaseImpl implements the Release interface
@@ -334,7 +334,7 @@ func (r *ReleaseImpl) OpenAssetFile(path string) (*os.File, error) {
 }
 
 // DownloadReleaseAssetsAndNotes downloads release assets and notes from the pagerguild/pagerguild repository
-func (r *ReleaseImpl) DownloadReleaseAssetsAndNotes(ctx context.Context, client *github.Client, dirPath string) error {
+func (r *ReleaseImpl) DownloadReleaseAssetsAndNotes(ctx context.Context, client *github.Client, dirPath, pat string) error {
 	version := r.GetVersion()
 	tag := tagName(version)
 
@@ -367,149 +367,75 @@ func (r *ReleaseImpl) DownloadReleaseAssetsAndNotes(ctx context.Context, client 
 	// Download each asset
 	for _, name := range assetNames {
 		// Look for the asset in the release
-		var assetURL string
+		var asset *github.ReleaseAsset
+
+		fmt.Printf("Looking for asset %s.%s in release with %d assets\n", name, fileType, len(release.Assets))
 		for _, a := range release.Assets {
 			downloadName := fmt.Sprintf("%s.%s", name, fileType)
 			if a.GetName() == downloadName {
-				assetURL = a.GetBrowserDownloadURL()
+				asset = a
 				break
 			}
 		}
 
-		if assetURL == "" {
+		if asset == nil {
 			return fmt.Errorf("asset %s.%s not found in release", name, fileType)
 		}
 
-		// Download the asset
+		// Create the local file
 		localPath := filepath.Join(dirPath, fmt.Sprintf("%s.%s", name, fileType))
-		fmt.Printf("Downloading asset %s to %s\n", name, localPath)
+		fmt.Printf("Downloading asset %s (ID: %d) to %s\n", name, asset.GetID(), localPath)
 
-		if err := downloadFile(assetURL, localPath); err != nil {
-			return fmt.Errorf("failed to download asset %s: %w", name, err)
+		// Create the output file
+		out, err := os.Create(localPath)
+		if err != nil {
+			return fmt.Errorf("failed to create file %s: %w", localPath, err)
 		}
 
-		asset := ReleaseAsset{
+		// Download the asset using GitHub client
+		// Pass nil as followRedirectsClient to get redirectURL instead of io.Reader
+		rc, redirectURL, err := client.Repositories.DownloadReleaseAsset(ctx, sourceRepoOwner, sourceRepoName, asset.GetID(), AuthenticatedHttpClient(pat))
+		if err != nil {
+			out.Close()
+			return fmt.Errorf("failed to get asset download info: %w", err)
+		}
+
+		// Per the docs, exactly one of rc and redirectURL will be non-zero
+		if rc != nil {
+			// Direct download case
+			_, err = io.Copy(out, rc)
+			rc.Close()
+			if err != nil {
+				out.Close()
+				return fmt.Errorf("failed to save asset to file: %w", err)
+			}
+		} else if redirectURL != "" {
+			// Redirect case
+			resp, err := http.Get(redirectURL)
+			if err != nil {
+				out.Close()
+				return fmt.Errorf("failed to download from redirect URL: %w", err)
+			}
+			defer resp.Body.Close()
+
+			_, err = io.Copy(out, resp.Body)
+			if err != nil {
+				out.Close()
+				return fmt.Errorf("failed to save asset from redirect to file: %w", err)
+			}
+		}
+
+		out.Close()
+
+		// Add to our assets list
+		assetInfo := ReleaseAsset{
 			Name: name,
 			Path: localPath,
 		}
-		assets = append(assets, asset)
+		assets = append(assets, assetInfo)
 	}
 
 	r.assets = assets
-	return nil
-}
-
-// Helper function to download a file from a URL
-func downloadFile(url, filepath string) error {
-	// Create the file
-	out, err := os.Create(filepath)
-	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
-	}
-	defer out.Close()
-
-	// Get the data
-	resp, err := http.Get(url)
-	if err != nil {
-		return fmt.Errorf("failed to GET from url: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status: %s", resp.Status)
-	}
-
-	// Write the body to file
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to copy response body to file: %w", err)
-	}
-
-	return nil
-}
-
-// ReleaseStrategy defines the steps to create a release
-func ReleaseStrategy(ctx context.Context, r Release, dirPath string, pat string) error {
-	// Create GitHub client (needed for download and release checks)
-	client := r.CreateGitHubClient(pat)
-
-	// Step 1: Download assets and release notes from pagerguild/pagerguild
-	if err := r.DownloadReleaseAssetsAndNotes(ctx, client, dirPath); err != nil {
-		return fmt.Errorf("failed to download release assets: %w", err)
-	}
-
-	// Step 2: Validate assets
-	if err := r.Validate(); err != nil {
-		return fmt.Errorf("release validation failed: %w", err)
-	}
-
-	if err := r.ComputeChecksums(); err != nil {
-		return fmt.Errorf("checksum computation failed: %w", err)
-	}
-
-	// Print checksums
-	for _, asset := range r.GetAssets() {
-		fmt.Printf("SHA256 (%s.%s) = %s\n", asset.Name, fileType, asset.Checksum)
-	}
-
-	version := r.GetVersion()
-
-	// Step 3: Check if release already exists
-	exists, err := r.ReleaseExists(ctx, client, version)
-	if err != nil {
-		return fmt.Errorf("failed to check if release exists: %w", err)
-	}
-	if exists {
-		return fmt.Errorf("release %s already exists", tagName(version))
-	}
-
-	// Step 4: Generate and save the Homebrew formula
-	formula, err := r.RenderFormulaTemplate()
-	if err != nil {
-		return fmt.Errorf("failed to render formula: %w", err)
-	}
-
-	if err := r.SaveFormulaFile(formula); err != nil {
-		return fmt.Errorf("failed to save formula file: %w", err)
-	}
-
-	// Step 5: Commit the formula change
-	commitMsg := fmt.Sprintf("Update formula for release v%s", version)
-	commitSHA, err := r.CommitFormulaChange(ctx, pat, commitMsg)
-	if err != nil {
-		return fmt.Errorf("failed to commit formula change: %w", err)
-	}
-
-	fmt.Printf("Committed formula update with SHA: %s\n", commitSHA)
-
-	// Step 6: Create and push tag to the new commit
-	if err := r.CreateAndPushTagToGitHub(ctx, pat, version, r.GetRepoPath(), commitSHA); err != nil {
-		return fmt.Errorf("failed to create and push tag: %w", err)
-	}
-
-	// Step 7: Create GitHub release
-	releaseID, err := r.CreateGitHubRelease(ctx, client, version, r.GetNotesContent())
-	if err != nil {
-		return fmt.Errorf("failed to create GitHub release: %w", err)
-	}
-
-	// Step 8: Upload assets
-	for _, asset := range r.GetAssets() {
-		// Open the asset file using the interface method
-		file, err := r.OpenAssetFile(asset.Path)
-		if err != nil {
-			return fmt.Errorf("failed to open asset file %s: %w", asset.Path, err)
-		}
-
-		// Upload the asset
-		err = r.UploadReleaseAsset(ctx, client, releaseID, asset.Name, mediaType, file)
-		file.Close()
-		if err != nil {
-			return fmt.Errorf("failed to upload asset %s: %w", asset.Name, err)
-		}
-	}
-
-	fmt.Printf("Successfully created release v%s with all assets\n", version)
 	return nil
 }
 
@@ -644,6 +570,91 @@ func (r *ReleaseImpl) CommitFormulaChange(ctx context.Context, pat, message stri
 	return hash.String(), nil
 }
 
+// ReleaseStrategy defines the steps to create a release
+func ReleaseStrategy(ctx context.Context, r Release, dirPath string, pat string) error {
+	// Create GitHub client (needed for download and release checks)
+	client := r.CreateGitHubClient(pat)
+
+	// Step 1: Download assets and release notes from pagerguild/pagerguild
+	if err := r.DownloadReleaseAssetsAndNotes(ctx, client, dirPath, pat); err != nil {
+		return fmt.Errorf("failed to download release assets: %w", err)
+	}
+
+	// Step 2: Validate assets
+	if err := r.Validate(); err != nil {
+		return fmt.Errorf("release validation failed: %w", err)
+	}
+
+	if err := r.ComputeChecksums(); err != nil {
+		return fmt.Errorf("checksum computation failed: %w", err)
+	}
+
+	// Print checksums
+	for _, asset := range r.GetAssets() {
+		fmt.Printf("SHA256 (%s.%s) = %s\n", asset.Name, fileType, asset.Checksum)
+	}
+
+	version := r.GetVersion()
+
+	// Step 3: Check if release already exists
+	exists, err := r.ReleaseExists(ctx, client, version)
+	if err != nil {
+		return fmt.Errorf("failed to check if release exists: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("release %s already exists", tagName(version))
+	}
+
+	// Step 4: Generate and save the Homebrew formula
+	formula, err := r.RenderFormulaTemplate()
+	if err != nil {
+		return fmt.Errorf("failed to render formula: %w", err)
+	}
+
+	if err := r.SaveFormulaFile(formula); err != nil {
+		return fmt.Errorf("failed to save formula file: %w", err)
+	}
+
+	// Step 5: Commit the formula change
+	commitMsg := fmt.Sprintf("Update formula for release v%s", version)
+	commitSHA, err := r.CommitFormulaChange(ctx, pat, commitMsg)
+	if err != nil {
+		return fmt.Errorf("failed to commit formula change: %w", err)
+	}
+
+	fmt.Printf("Committed formula update with SHA: %s\n", commitSHA)
+
+	// Step 6: Create and push tag to the new commit
+	if err := r.CreateAndPushTagToGitHub(ctx, pat, version, r.GetRepoPath(), commitSHA); err != nil {
+		return fmt.Errorf("failed to create and push tag: %w", err)
+	}
+
+	// Step 7: Create GitHub release
+	releaseID, err := r.CreateGitHubRelease(ctx, client, version, r.GetNotesContent())
+	if err != nil {
+		return fmt.Errorf("failed to create GitHub release: %w", err)
+	}
+
+	// Step 8: Upload assets
+	for _, asset := range r.GetAssets() {
+		// Open the asset file using the interface method
+		file, err := r.OpenAssetFile(asset.Path)
+		if err != nil {
+			return fmt.Errorf("failed to open asset file %s: %w", asset.Path, err)
+		}
+
+		// Upload the asset
+		err = r.UploadReleaseAsset(ctx, client, releaseID, asset.Name, mediaType, file)
+		file.Close()
+		if err != nil {
+			return fmt.Errorf("failed to upload asset %s: %w", asset.Name, err)
+		}
+	}
+
+	fmt.Printf("Successfully created release v%s with all assets\n", version)
+	return nil
+}
+
 func main() {
 	if len(os.Args) != 4 {
 		fmt.Fprintf(os.Stderr, "Usage: %s RELEASE_VERSION DIRECTORY_PATH REPO_PATH\n", os.Args[0])
@@ -682,5 +693,24 @@ func main() {
 	if err := ReleaseStrategy(ctx, release, dirPath, pat); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to execute release strategy: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+type HeaderRoundTripper struct {
+	Transport http.RoundTripper
+	Token     string
+}
+
+func (h *HeaderRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", h.Token))
+	return h.Transport.RoundTrip(req)
+}
+
+func AuthenticatedHttpClient(token string) *http.Client {
+	return &http.Client{
+		Transport: &HeaderRoundTripper{
+			Transport: http.DefaultTransport,
+			Token:     token,
+		},
 	}
 }

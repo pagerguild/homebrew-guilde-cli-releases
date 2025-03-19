@@ -129,17 +129,17 @@ func (mr *MockReleaseMockRecorder) CreateGitHubRelease(ctx, client, version, not
 }
 
 // DownloadReleaseAssetsAndNotes mocks base method.
-func (m *MockRelease) DownloadReleaseAssetsAndNotes(ctx context.Context, client *github.Client, dirPath string) error {
+func (m *MockRelease) DownloadReleaseAssetsAndNotes(ctx context.Context, client *github.Client, dirPath, pat string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DownloadReleaseAssetsAndNotes", ctx, client, dirPath)
+	ret := m.ctrl.Call(m, "DownloadReleaseAssetsAndNotes", ctx, client, dirPath, pat)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DownloadReleaseAssetsAndNotes indicates an expected call of DownloadReleaseAssetsAndNotes.
-func (mr *MockReleaseMockRecorder) DownloadReleaseAssetsAndNotes(ctx, client, dirPath any) *gomock.Call {
+func (mr *MockReleaseMockRecorder) DownloadReleaseAssetsAndNotes(ctx, client, dirPath, pat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DownloadReleaseAssetsAndNotes", reflect.TypeOf((*MockRelease)(nil).DownloadReleaseAssetsAndNotes), ctx, client, dirPath)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DownloadReleaseAssetsAndNotes", reflect.TypeOf((*MockRelease)(nil).DownloadReleaseAssetsAndNotes), ctx, client, dirPath, pat)
 }
 
 // GetAssets mocks base method.

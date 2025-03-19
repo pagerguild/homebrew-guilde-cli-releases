@@ -82,7 +82,7 @@ func TestReleaseStrategy_HappyPath(t *testing.T) {
 		mock.EXPECT().CreateGitHubClient(testPAT).Return(mockClient),
 
 		// Step 2: Download assets and release notes
-		mock.EXPECT().DownloadReleaseAssetsAndNotes(ctx, mockClient, testDir).Return(nil),
+		mock.EXPECT().DownloadReleaseAssetsAndNotes(ctx, mockClient, testDir, testPAT).Return(nil),
 
 		// Step 3: Validate assets
 		mock.EXPECT().Validate().Return(nil),
@@ -149,7 +149,7 @@ func TestReleaseStrategy_ReleaseAlreadyExists(t *testing.T) {
 		mock.EXPECT().CreateGitHubClient(testPAT).Return(mockClient),
 
 		// Step 2: Download assets and release notes
-		mock.EXPECT().DownloadReleaseAssetsAndNotes(ctx, mockClient, testDir).Return(nil),
+		mock.EXPECT().DownloadReleaseAssetsAndNotes(ctx, mockClient, testDir, testPAT).Return(nil),
 
 		// Step 3: Validate assets
 		mock.EXPECT().Validate().Return(nil),
