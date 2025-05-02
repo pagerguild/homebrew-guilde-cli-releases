@@ -1,27 +1,27 @@
 class GuildeCli < Formula
   desc "Guilde Command Line Interface"
   homepage "https://github.com/pagerguild/homebrew-guilde-cli-releases"
-  version "0.44.6"
+  version "0.44.7"
 
   on_macos do
     on_arm do
-      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v0.44.6/guilde-cli-darwin-arm64.zip"
-      sha256 "abae161d6bc9d5c25283b0b98d2ab8cca722fa46b726e1f2410461aaea5c568c"
+      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v0.44.7/guilde-cli-darwin-arm64.zip"
+      sha256 "34fef46a8dfaba40e044dd4e4b3d10c7d3390977f314119f8fbfe6077eeebb40"
     end
     on_intel do
-      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v0.44.6/guilde-cli-darwin-amd64.zip"
-      sha256 "0161abc6d57764e19b981ff44c3908b89dce4e38a1e0be098bff09fc4a2ea2c8"
+      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v0.44.7/guilde-cli-darwin-amd64.zip"
+      sha256 "d0b530131271a9207caa676056d8480ef8bb8cd6f27cd0c0322c94a48ee9c8b7"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v0.44.6/guilde-cli-linux-arm64.zip"
-      sha256 "7aa1719f482870bf4900f090a2181108393c1ea460fe93e799f7f718c31a5a24"
+      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v0.44.7/guilde-cli-linux-arm64.zip"
+      sha256 "607df248dbef688495da61985458d795f9c380101f8b0efa21d61c2bd0474968"
     end
     on_intel do
-      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v0.44.6/guilde-cli-linux-amd64.zip"
-      sha256 "f9aa7aa44331548722813070b960f72d71866d9c64030451d602f3b63f3d57c0"
+      url "https://github.com/pagerguild/homebrew-guilde-cli-releases/releases/download/v0.44.7/guilde-cli-linux-amd64.zip"
+      sha256 "0409e509f8775e747eb42989c5a9ee8c6ba4b3fe14fcbea24ef65ba2241524ad"
     end
   end
 
